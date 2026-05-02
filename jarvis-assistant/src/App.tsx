@@ -1,40 +1,47 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { HUDBackground } from './components/HUDBackground'
-import { TopBar } from './components/TopBar'
-import { Orb } from './components/Orb'
-import { ChatPanel } from './components/ChatPanel'
-import { Toolbar } from './components/Toolbar'
-import { SubtitleBar } from './components/SubtitleBar'
-import { PersonalityBar } from './components/PersonalityBar'
-import { useChat } from './hooks/useChat'
-import { useMic } from './hooks/useMic'
-import { useVoice } from './hooks/useVoice'
-import type { Personality } from './hooks/useChat'
+import { HUDBackground }   from './components/HUDBackground'
+import { TopBar }          from './components/TopBar'
+import { Orb }             from './components/Orb'
+import { ChatPanel }       from './components/ChatPanel'
+import { Toolbar }         from './components/Toolbar'
+import { SubtitleBar }     from './components/SubtitleBar'
+import { PersonalityBar }  from './components/PersonalityBar'
+import { useChat }         from './hooks/useChat'
+import { useMic }          from './hooks/useMic'
+import { useVoice }        from './hooks/useVoice'
+import type { Personality, ActiveMode } from './hooks/useChat'
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 
 type SystemStatus = 'online' | 'offline' | 'error'
 
-export default function App(): React.JSX.Element {
-  const [orbState, setOrbState]         = useState<OrbState>('idle')
-  const [orbVolume, setOrbVolume]       = useState(0)   // drives orb ring animation
-  const [chatOpen, setChatOpen]         = useState(false)
-  const [activeTab, setActiveTab]       = useState<string | null>(null)
-  const [subtitle, setSubtitle]         = useState('')
-  const [systemStatus, setSystemStatus] = useState<SystemStatus>('offline')
-  const [personality, setPersonality]   = useState<Personality>('calm')
-  const [ttsMode, setTtsMode]           = useState<'elevenlabs' | 'webspeech' | 'silent'>('silent')
-  const spaceDownRef = useRef(false)
+const MODE_LABELS: Record<NonNullable<ActiveMode>, string> = {
+  study:  'STUDY MODE',
+  gaming: 'GAMING MODE',
+  chill:  'CHILL MODE'
+}
 
-  // ── Backend health check ──────────────────────────────────────────────────
+export default function App(): React.JSX.Element {
+  const [orbState, setOrbState]       = useState<OrbState>('idle')
+  const [orbVolume, setOrbVolume]     = useState(0)
+  const [chatOpen, setChatOpen]       = useState(false)
+  const [activeTab, setActiveTab]     = useState<string | null>(null)
+  const [subtitle, setSubtitle]       = useState('')
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>('offline')
+  const [personality, setPersonality] = useState<Personality>('calm')
+  const [activeMode, setActiveMode]   = useState<ActiveMode>(null)
+  const [actionFeedback, setActionFeedback] = useState('')
+  const spaceDownRef = useRef(false)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Backend health ─────────────────────────────────────────────────────────
   useEffect(() => {
     const check = async () => {
       try {
         const res  = await fetch('http://127.0.0.1:3001/api/health')
-        const data = await res.json() as { apiConfigured: boolean; ttsConfigured: boolean }
+        const data = await res.json() as { apiConfigured: boolean }
         setSystemStatus(data.apiConfigured ? 'online' : 'error')
-        if (data.ttsConfigured) setTtsMode('elevenlabs')
       } catch {
         setSystemStatus('offline')
       }
@@ -44,28 +51,35 @@ export default function App(): React.JSX.Element {
     return () => clearInterval(id)
   }, [])
 
-  // ── Voice output (ElevenLabs / Web Speech) ────────────────────────────────
-  const { speak, stop: stopSpeaking, isSpeaking, mode: activeVoiceMode } = useVoice({
-    onSpeakStart: () => {
-      setOrbState('speaking')
-      setTtsMode(activeVoiceMode === 'elevenlabs' ? 'elevenlabs' : 'webspeech')
-    },
-    onSpeakEnd: () => {
-      setOrbState('idle')
-      setSubtitle('')
-      setOrbVolume(0)
-    },
-    onVolumeChange: (v) => {
-      // Only pipe to orb when JARVIS is speaking (not when mic is active)
-      if (isSpeaking) setOrbVolume(v)
-    }
+  // ── Voice output ───────────────────────────────────────────────────────────
+  const { speak, stop: stopSpeaking, isSpeaking, mode: voiceMode } = useVoice({
+    onSpeakStart: ()  => setOrbState('speaking'),
+    onSpeakEnd:   ()  => { setOrbState('idle'); setSubtitle(''); setOrbVolume(0) },
+    onVolumeChange: (v) => { if (isSpeaking) setOrbVolume(v) }
   })
 
-  // ── Chat ──────────────────────────────────────────────────────────────────
+  // ── Action feedback helper ─────────────────────────────────────────────────
+  const showFeedback = useCallback((msg: string) => {
+    setActionFeedback(msg)
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    feedbackTimerRef.current = setTimeout(() => setActionFeedback(''), 3500)
+  }, [])
+
+  // ── Mode change ────────────────────────────────────────────────────────────
+  const handleModeChange = useCallback((mode: ActiveMode, newPersonality: Personality) => {
+    setActiveMode(mode)
+    setPersonality(newPersonality)
+    // Clear mode after 4 hours of inactivity (keeps the badge visible but not forever)
+    setTimeout(() => setActiveMode(null), 4 * 60 * 60 * 1000)
+  }, [])
+
+  // ── Chat ───────────────────────────────────────────────────────────────────
   const { messages, sendMessage, isLoading } = useChat({
-    onOrbStateChange: setOrbState,
-    onSubtitleChange: setSubtitle,
-    onSpeak: (text) => speak(text, personality)
+    onOrbStateChange:  setOrbState,
+    onSubtitleChange:  setSubtitle,
+    onSpeak:           (text) => speak(text, personality),
+    onModeChange:      handleModeChange,
+    onActionFeedback:  showFeedback
   })
 
   const handleSend = useCallback(
@@ -73,13 +87,12 @@ export default function App(): React.JSX.Element {
     [sendMessage, personality]
   )
 
-  // ── Mic / STT ─────────────────────────────────────────────────────────────
+  // ── Mic / STT ──────────────────────────────────────────────────────────────
   const handleTranscript = useCallback(
     (text: string) => {
       if (!text.trim()) return
       setChatOpen(true)
       setActiveTab('chat')
-      // Stop JARVIS speaking if interrupted by user
       if (isSpeaking) stopSpeaking()
       sendMessage(text, personality)
     },
@@ -87,17 +100,12 @@ export default function App(): React.JSX.Element {
   )
 
   const {
-    isListening,
-    volume: micVolume,
-    interim,
-    error: micError,
-    isSupported,
-    startListening,
-    stopAndSend,
-    cancelListening
+    isListening, volume: micVolume, interim,
+    error: micError, isSupported,
+    startListening, stopAndSend, cancelListening
   } = useMic(handleTranscript)
 
-  // Orb volume = mic when listening, TTS playback when speaking
+  // Pipe mic volume to orb when listening
   useEffect(() => {
     if (isListening) {
       setOrbVolume(micVolume)
@@ -118,13 +126,13 @@ export default function App(): React.JSX.Element {
     return () => clearTimeout(id)
   }, [micError])
 
-  // ── Mic toggle ────────────────────────────────────────────────────────────
+  // ── Mic toggle ─────────────────────────────────────────────────────────────
   const toggleMic = useCallback(() => {
     if (isListening) { stopAndSend() }
     else             { if (isSpeaking) stopSpeaking(); startListening() }
   }, [isListening, startListening, stopAndSend, isSpeaking, stopSpeaking])
 
-  // ── Space bar push-to-talk ────────────────────────────────────────────────
+  // ── Space bar push-to-talk ─────────────────────────────────────────────────
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
@@ -145,10 +153,13 @@ export default function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onDown)
     window.addEventListener('keyup', onUp)
-    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp) }
+    return () => {
+      window.removeEventListener('keydown', onDown)
+      window.removeEventListener('keyup', onUp)
+    }
   }, [isListening, startListening, stopAndSend, cancelListening, isSpeaking, stopSpeaking])
 
-  // ── Toolbar ───────────────────────────────────────────────────────────────
+  // ── Toolbar ────────────────────────────────────────────────────────────────
   const handleToolbarAction = useCallback(
     (id: string) => {
       if (id === 'chat') {
@@ -175,16 +186,29 @@ export default function App(): React.JSX.Element {
     <div className="app">
       <HUDBackground />
 
-      <TopBar systemStatus={systemStatus} />
+      <TopBar systemStatus={systemStatus} activeMode={activeMode} />
 
-      {/* Personality bar — sits below top bar */}
       <PersonalityBar current={personality} onChange={setPersonality} />
 
       <main className="app-main">
         <Orb state={orbState} volume={orbVolume} onClick={handleOrbClick} />
       </main>
 
-      {/* Voice mode badge */}
+      {/* Action feedback toast */}
+      <AnimatePresence>
+        {actionFeedback && (
+          <motion.div
+            className="action-toast"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+          >
+            {actionFeedback}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* TTS mode badge */}
       <AnimatePresence>
         {isSpeaking && (
           <motion.div
@@ -198,12 +222,12 @@ export default function App(): React.JSX.Element {
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 0.6, repeat: Infinity }}
             />
-            {activeVoiceMode === 'elevenlabs' ? 'ELEVENLABS' : 'WEB SPEECH'}
+            {voiceMode === 'elevenlabs' ? 'ELEVENLABS' : 'WEB SPEECH'}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Push-to-talk interim transcript overlay */}
+      {/* Push-to-talk interim overlay */}
       {isListening && (
         <div className="ptt-hint">
           {interim
@@ -214,7 +238,12 @@ export default function App(): React.JSX.Element {
       )}
 
       <div className="app-bottom">
-        <SubtitleBar text={subtitle} isVisible={!!subtitle} isListening={isListening} interim={interim} />
+        <SubtitleBar
+          text={subtitle}
+          isVisible={!!subtitle}
+          isListening={isListening}
+          interim={interim}
+        />
         <Toolbar
           activeTab={isListening ? 'mic' : activeTab}
           onAction={handleToolbarAction}

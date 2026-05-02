@@ -2,33 +2,54 @@ import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { startServer } from './server'
+import { setSystemVolume, readClipboard, getSystemInfo } from './actions'
 
 let mainWindow: BrowserWindow | null = null
 
+// URLs and protocols that JARVIS is allowed to open
 const ALLOWED_URL_PREFIXES = [
   'https://www.google.com/',
   'https://google.com/',
   'https://www.youtube.com',
   'https://youtube.com',
+  'https://music.youtube.com',
   'https://discord.com',
   'https://www.discord.com',
   'https://maps.google.com',
   'https://open.spotify.com',
-  'https://music.youtube.com',
   'https://www.twitch.tv',
   'https://github.com',
   'https://www.reddit.com',
   'https://www.wikipedia.org',
-  'https://en.wikipedia.org'
+  'https://en.wikipedia.org',
+  'https://pomofocus.io',
+  'https://www.notion.so',
+  'https://mail.google.com',
+  'https://calendar.google.com',
+  'https://drive.google.com'
+]
+
+// App protocol schemes that JARVIS is allowed to open (requires app to be installed)
+const ALLOWED_PROTOCOLS = [
+  'discord://',
+  'steam://',
+  'spotify:',
+  'slack://',
+  'vscode://',
+  'notion://'
 ]
 
 function isUrlAllowed(url: string): boolean {
   try {
     const parsed = new URL(url)
-    if (parsed.protocol !== 'https:') return false
-    return ALLOWED_URL_PREFIXES.some(
-      (prefix) => url.startsWith(prefix) || url === prefix.replace(/\/$/, '')
-    )
+    // Allow https URLs in the prefix list
+    if (parsed.protocol === 'https:') {
+      return ALLOWED_URL_PREFIXES.some(
+        (p) => url.startsWith(p) || url === p.replace(/\/$/, '')
+      )
+    }
+    // Allow approved app protocol schemes
+    return ALLOWED_PROTOCOLS.some((p) => url.startsWith(p))
   } catch {
     return false
   }
@@ -52,9 +73,7 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
-  })
+  mainWindow.on('ready-to-show', () => mainWindow?.show())
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -69,17 +88,11 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  // Auto-grant microphone permission for the renderer (needed for Web Speech API + getUserMedia)
-  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    if (permission === 'media' || permission === 'microphone') {
-      callback(true)
-    } else {
-      callback(false)
-    }
+  // Auto-grant microphone permission
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
+    cb(permission === 'media' || permission === 'microphone')
   })
-
-  // Also handle permission checks (Electron 12+)
-  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
     return permission === 'media' || permission === 'microphone'
   })
 
@@ -95,6 +108,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+// ── Window controls ────────────────────────────────────────────────────────────
 ipcMain.on('window-minimize', () => mainWindow?.minimize())
 ipcMain.on('window-maximize', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize()
@@ -102,9 +116,10 @@ ipcMain.on('window-maximize', () => {
 })
 ipcMain.on('window-close', () => mainWindow?.close())
 
-ipcMain.handle('open-url', async (_event, url: string) => {
+// ── URL / protocol opener ──────────────────────────────────────────────────────
+ipcMain.handle('open-url', async (_e, url: string) => {
   if (!isUrlAllowed(url)) {
-    console.warn('[JARVIS] Blocked URL (not in allowlist):', url)
+    console.warn('[JARVIS] Blocked URL:', url)
     return { success: false, reason: 'URL not in allowlist' }
   }
   try {
@@ -115,4 +130,20 @@ ipcMain.handle('open-url', async (_event, url: string) => {
   }
 })
 
+// ── System volume ──────────────────────────────────────────────────────────────
+ipcMain.handle('action:set-volume', async (_e, level: number) => {
+  return setSystemVolume(level)
+})
+
+// ── Clipboard ──────────────────────────────────────────────────────────────────
+ipcMain.handle('action:get-clipboard', () => {
+  return readClipboard()
+})
+
+// ── System info ────────────────────────────────────────────────────────────────
+ipcMain.handle('action:get-sysinfo', () => {
+  return getSystemInfo()
+})
+
+// ── Platform ───────────────────────────────────────────────────────────────────
 ipcMain.handle('get-platform', () => process.platform)

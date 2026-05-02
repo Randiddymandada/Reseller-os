@@ -1,15 +1,21 @@
 /**
  * Type declarations for the window.jarvis API exposed by the Electron preload.
- * This makes the renderer TypeScript-aware of all IPC bridges.
  */
 declare global {
   interface Window {
     jarvis: {
-      minimize: () => void
-      maximize: () => void
-      close: () => void
-      openUrl: (url: string) => Promise<{ success: boolean; reason?: string }>
-      getPlatform: () => Promise<NodeJS.Platform>
+      // Window
+      minimize:     () => void
+      maximize:     () => void
+      close:        () => void
+      // Navigation
+      openUrl:      (url: string) => Promise<{ success: boolean; reason?: string }>
+      // Stage 4 — system actions
+      setVolume:    (level: number) => Promise<{ success: boolean; error?: string }>
+      getClipboard: () => Promise<string>
+      getSysInfo:   () => Promise<{ time: string; date: string; platform: string; uptime: number }>
+      // Platform
+      getPlatform:  () => Promise<NodeJS.Platform>
     }
   }
 }

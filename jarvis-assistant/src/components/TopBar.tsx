@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import type { ActiveMode } from '../hooks/useChat'
+
+const MODE_COLORS: Record<NonNullable<ActiveMode>, string> = {
+  study:  '#00ffcc',
+  gaming: '#ff6b35',
+  chill:  '#00d4ff'
+}
+
+const MODE_LABELS: Record<NonNullable<ActiveMode>, string> = {
+  study:  'STUDY MODE',
+  gaming: 'GAMING MODE',
+  chill:  'CHILL MODE'
+}
 
 interface TopBarProps {
   systemStatus: 'online' | 'offline' | 'error'
+  activeMode: ActiveMode
 }
 
-export function TopBar({ systemStatus }: TopBarProps): React.JSX.Element {
+export function TopBar({ systemStatus, activeMode }: TopBarProps): React.JSX.Element {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -14,29 +28,20 @@ export function TopBar({ systemStatus }: TopBarProps): React.JSX.Element {
   }, [])
 
   const timeStr = time.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
   })
 
   const dateStr = time.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
   }).toUpperCase()
 
-  const handleMinimize = () => window.jarvis?.minimize()
-  const handleMaximize = () => window.jarvis?.maximize()
-  const handleClose = () => window.jarvis?.close()
-
   const statusColor =
-    systemStatus === 'online' ? '#00ff88' : systemStatus === 'error' ? '#ff3b3b' : '#ffaa00'
+    systemStatus === 'online' ? '#00ff88'
+    : systemStatus === 'error' ? '#ffaa00'
+    : '#ff3b3b'
 
   return (
     <div className="top-bar">
-      {/* Draggable region — covers most of the bar */}
       <div className="top-bar-drag" />
 
       <div className="top-bar-left">
@@ -48,10 +53,36 @@ export function TopBar({ systemStatus }: TopBarProps): React.JSX.Element {
             animate={{ opacity: [1, 0.4, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           />
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
+          <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: 1 }}>
             {systemStatus.toUpperCase()}
           </span>
         </div>
+
+        {/* Active mode badge */}
+        <AnimatePresence>
+          {activeMode && (
+            <motion.div
+              className="mode-badge"
+              style={{
+                borderColor: `${MODE_COLORS[activeMode]}55`,
+                color: MODE_COLORS[activeMode],
+                boxShadow: `0 0 10px ${MODE_COLORS[activeMode]}33`
+              }}
+              initial={{ opacity: 0, scale: 0.85, x: -8 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.85, x: -8 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+            >
+              <motion.span
+                className="mode-badge-dot"
+                style={{ background: MODE_COLORS[activeMode] }}
+                animate={{ scale: [1, 1.5, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+              {MODE_LABELS[activeMode]}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="top-bar-center">
@@ -65,9 +96,9 @@ export function TopBar({ systemStatus }: TopBarProps): React.JSX.Element {
       <div className="top-bar-right">
         <span className="top-bar-time">{timeStr}</span>
         <div className="win-controls">
-          <button className="win-btn win-btn-min" onClick={handleMinimize} title="Minimize" />
-          <button className="win-btn win-btn-max" onClick={handleMaximize} title="Maximize" />
-          <button className="win-btn win-btn-close" onClick={handleClose} title="Close" />
+          <button className="win-btn win-btn-min"   onClick={() => window.jarvis?.minimize()} title="Minimize" />
+          <button className="win-btn win-btn-max"   onClick={() => window.jarvis?.maximize()} title="Maximize" />
+          <button className="win-btn win-btn-close" onClick={() => window.jarvis?.close()}    title="Close"    />
         </div>
       </div>
     </div>
