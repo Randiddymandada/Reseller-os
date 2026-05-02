@@ -3,6 +3,8 @@ import type { OrbState } from '../App'
 
 const API_BASE = 'http://127.0.0.1:3001/api'
 
+export type Personality = 'calm' | 'funny' | 'serious' | 'hype' | 'professional'
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -21,11 +23,13 @@ interface Action {
 interface UseChatOptions {
   onOrbStateChange: (state: OrbState) => void
   onSubtitleChange: (text: string) => void
+  /** Called with the reply text so Stage 3 voice can be triggered */
+  onSpeak?: (text: string) => void
 }
 
 interface UseChatReturn {
   messages: Message[]
-  sendMessage: (text: string) => Promise<void>
+  sendMessage: (text: string, personality?: Personality) => Promise<void>
   isLoading: boolean
   clearMessages: () => void
 }
@@ -47,7 +51,7 @@ async function executeAction(action: Action): Promise<void> {
   }
 }
 
-export function useChat({ onOrbStateChange, onSubtitleChange }: UseChatOptions): UseChatReturn {
+export function useChat({ onOrbStateChange, onSubtitleChange, onSpeak }: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const historyRef = useRef<{ role: 'user' | 'assistant'; content: string }[]>([])
@@ -68,10 +72,9 @@ export function useChat({ onOrbStateChange, onSubtitleChange }: UseChatOptions):
   )
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, personality: Personality = 'calm') => {
       if (!text.trim() || isLoading) return
 
-      // Add user message
       addMessage('user', text)
       historyRef.current.push({ role: 'user', content: text })
 
@@ -82,41 +85,45 @@ export function useChat({ onOrbStateChange, onSubtitleChange }: UseChatOptions):
         const res = await fetch(`${API_BASE}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: historyRef.current })
+          body: JSON.stringify({ messages: historyRef.current, personality })
         })
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-          throw new Error(err.error || `HTTP ${res.status}`)
+          throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
         }
 
-        const data: { message: string; action: Action | null } = await res.json()
+        const data = await res.json() as { message: string; action: Action | null }
         const reply = data.message
 
-        // Add assistant message
         addMessage('assistant', reply)
         historyRef.current.push({ role: 'assistant', content: reply })
 
-        // Show subtitle and set speaking state
+        // Show subtitle
         onSubtitleChange(reply)
         onOrbStateChange('speaking')
 
-        // Clear subtitle after 6 seconds
-        setTimeout(() => {
-          onSubtitleChange('')
-          onOrbStateChange('idle')
-        }, 6000)
+        if (onSpeak) {
+          // Stage 3+: hand off to voice; useVoice will call onSpeakEnd which resets state
+          onSpeak(reply)
+        } else {
+          // Fallback: clear after 6 s
+          setTimeout(() => {
+            onSubtitleChange('')
+            onOrbStateChange('idle')
+          }, 6000)
+        }
 
-        // Execute PC action if present
+        // Execute any PC action (slight delay so JARVIS speaks first)
         if (data.action) {
-          setTimeout(() => executeAction(data.action!), 500)
+          setTimeout(() => executeAction(data.action!), 600)
         }
       } catch (err) {
         const errMsg =
           err instanceof Error ? err.message : 'Connection failed. Is the backend running?'
 
         onOrbStateChange('error')
-        onSubtitleChange('System error. Check console for details.')
+        onSubtitleChange('System error. Check the console for details.')
         addMessage('assistant', `⚠ ${errMsg}`, true)
 
         setTimeout(() => {
@@ -129,7 +136,7 @@ export function useChat({ onOrbStateChange, onSubtitleChange }: UseChatOptions):
         setIsLoading(false)
       }
     },
-    [isLoading, addMessage, onOrbStateChange, onSubtitleChange]
+    [isLoading, addMessage, onOrbStateChange, onSubtitleChange, onSpeak]
   )
 
   const clearMessages = useCallback(() => {
