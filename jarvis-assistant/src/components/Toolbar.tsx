@@ -10,6 +10,7 @@ interface ToolbarProps {
   isListening: boolean
   isSupported: boolean
   isAnalyzing?: boolean
+  wakeWordEnabled?: boolean
 }
 
 export function Toolbar({
@@ -18,7 +19,8 @@ export function Toolbar({
   orbState,
   isListening,
   isSupported,
-  isAnalyzing = false
+  isAnalyzing = false,
+  wakeWordEnabled = false
 }: ToolbarProps): React.JSX.Element {
   const items = [
     {
@@ -113,7 +115,9 @@ export function Toolbar({
             ? 'HOLD SPACE TO TALK  •  RELEASE TO SEND  •  ESC TO CANCEL'
             : isAnalyzing
               ? 'CAPTURING SCREEN  •  ANALYZING WITH VISION AI…'
-              : 'HOLD SPACE OR CLICK MIC TO TALK  •  CLICK VISION TO ANALYZE SCREEN'}
+              : wakeWordEnabled
+                ? 'SAY "HEY JARVIS" TO ACTIVATE  •  SPACE TO PUSH-TO-TALK  •  ESC TO CLOSE CHAT'
+                : 'SPACE TO PUSH-TO-TALK  •  CLICK VISION FOR SCREEN ANALYSIS  •  ESC TO CLOSE CHAT'}
         </span>
       </div>
     </nav>

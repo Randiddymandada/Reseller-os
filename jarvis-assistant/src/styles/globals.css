@@ -1319,3 +1319,75 @@ html, body {
   border-color: rgba(0, 212, 255, 0.4);
   background: rgba(0, 212, 255, 0.08);
 }
+
+/* ────────────────────────────────────────
+   Stage 6 — Wake Word & Polish
+   ──────────────────────────────────────── */
+
+/* Wake word toggle pill in TopBar */
+.wake-word-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 20px;
+  border: 1px solid rgba(224, 247, 255, 0.12);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.wake-word-btn:hover {
+  border-color: rgba(0, 212, 255, 0.25);
+  color: var(--text-dim);
+}
+
+.wake-word-btn.active {
+  border-color: rgba(0, 255, 204, 0.4);
+  color: #00ffcc;
+  background: rgba(0, 255, 204, 0.06);
+}
+
+.wake-word-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #00ffcc;
+  box-shadow: 0 0 6px #00ffcc;
+  flex-shrink: 0;
+}
+
+/* Chat panel header flex layout (clear + close) */
+.chat-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Clear conversation button */
+.chat-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.chat-clear-btn:hover {
+  color: var(--error);
+  border-color: rgba(255, 59, 59, 0.25);
+  background: rgba(255, 59, 59, 0.08);
+}

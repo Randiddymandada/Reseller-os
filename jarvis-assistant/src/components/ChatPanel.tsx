@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { X, Send, ChevronRight } from 'lucide-react'
+import { X, Send, ChevronRight, Trash2 } from 'lucide-react'
 import type { Message } from '../hooks/useChat'
 
 interface ChatPanelProps {
@@ -8,9 +8,10 @@ interface ChatPanelProps {
   onSend: (text: string) => void
   isLoading: boolean
   onClose: () => void
+  onClear?: () => void
 }
 
-export function ChatPanel({ messages, onSend, isLoading, onClose }: ChatPanelProps): React.JSX.Element {
+export function ChatPanel({ messages, onSend, isLoading, onClose, onClear }: ChatPanelProps): React.JSX.Element {
   const [inputValue, setInputValue] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -58,9 +59,21 @@ export function ChatPanel({ messages, onSend, isLoading, onClose }: ChatPanelPro
           <ChevronRight size={14} color="var(--primary)" />
           <span className="chat-title">JARVIS INTERFACE</span>
         </div>
-        <button className="chat-close" onClick={onClose} aria-label="Close chat">
-          <X size={15} />
-        </button>
+        <div className="chat-header-right">
+          {onClear && messages.length > 0 && (
+            <button
+              className="chat-clear-btn"
+              onClick={onClear}
+              title="Clear conversation"
+              aria-label="Clear chat"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+          <button className="chat-close" onClick={onClose} aria-label="Close chat">
+            <X size={15} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

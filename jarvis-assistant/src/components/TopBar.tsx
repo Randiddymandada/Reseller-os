@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Mic } from 'lucide-react'
 import type { ActiveMode } from '../hooks/useChat'
 
 const MODE_COLORS: Record<NonNullable<ActiveMode>, string> = {
@@ -15,11 +16,18 @@ const MODE_LABELS: Record<NonNullable<ActiveMode>, string> = {
 }
 
 interface TopBarProps {
-  systemStatus: 'online' | 'offline' | 'error'
-  activeMode: ActiveMode
+  systemStatus:     'online' | 'offline' | 'error'
+  activeMode:       ActiveMode
+  wakeWordActive:   boolean
+  onToggleWakeWord: () => void
 }
 
-export function TopBar({ systemStatus, activeMode }: TopBarProps): React.JSX.Element {
+export function TopBar({
+  systemStatus,
+  activeMode,
+  wakeWordActive,
+  onToggleWakeWord
+}: TopBarProps): React.JSX.Element {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -83,12 +91,39 @@ export function TopBar({ systemStatus, activeMode }: TopBarProps): React.JSX.Ele
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Wake word toggle pill */}
+        <motion.button
+          className={`wake-word-btn${wakeWordActive ? ' active' : ''}`}
+          onClick={onToggleWakeWord}
+          whileTap={{ scale: 0.88 }}
+          title={wakeWordActive ? 'Wake word ON — say "Hey JARVIS"' : 'Click to enable wake word'}
+        >
+          <Mic size={9} />
+          <span>WAKE WORD</span>
+          <AnimatePresence>
+            {wakeWordActive && (
+              <motion.span
+                className="wake-word-dot"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: [1, 1.4, 1], opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ scale: { duration: 1.4, repeat: Infinity }, opacity: { duration: 0.2 } }}
+              />
+            )}
+          </AnimatePresence>
+        </motion.button>
       </div>
 
       <div className="top-bar-center">
         <span className="mono top-bar-date">{dateStr}</span>
         <span className="top-bar-sep">|</span>
-        <span className="mono top-bar-stat">CPU NOMINAL</span>
+        <span className="mono top-bar-stat">
+          {wakeWordActive
+            ? <motion.span style={{ color: '#00ffcc' }} animate={{ opacity: [1, 0.5, 1] }} transition={{ duration: 2, repeat: Infinity }}>WAKE WORD ACTIVE</motion.span>
+            : 'CPU NOMINAL'
+          }
+        </span>
         <span className="top-bar-sep">|</span>
         <span className="mono top-bar-stat">SYSTEMS READY</span>
       </div>

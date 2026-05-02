@@ -10,17 +10,12 @@ import { PersonalityBar }  from './components/PersonalityBar'
 import { useChat }         from './hooks/useChat'
 import { useMic }          from './hooks/useMic'
 import { useVoice }        from './hooks/useVoice'
+import { useWakeWord }     from './hooks/useWakeWord'
 import type { Personality, ActiveMode } from './hooks/useChat'
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 
 type SystemStatus = 'online' | 'offline' | 'error'
-
-const MODE_LABELS: Record<NonNullable<ActiveMode>, string> = {
-  study:  'STUDY MODE',
-  gaming: 'GAMING MODE',
-  chill:  'CHILL MODE'
-}
 
 export default function App(): React.JSX.Element {
   const [orbState, setOrbState]       = useState<OrbState>('idle')
@@ -33,7 +28,8 @@ export default function App(): React.JSX.Element {
   const [activeMode, setActiveMode]   = useState<ActiveMode>(null)
   const [actionFeedback, setActionFeedback] = useState('')
   const [screenshotFlash, setScreenshotFlash] = useState(false)
-  const spaceDownRef = useRef(false)
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
+  const spaceDownRef     = useRef(false)
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Backend health ─────────────────────────────────────────────────────────
@@ -54,8 +50,8 @@ export default function App(): React.JSX.Element {
 
   // ── Voice output ───────────────────────────────────────────────────────────
   const { speak, stop: stopSpeaking, isSpeaking, mode: voiceMode } = useVoice({
-    onSpeakStart: ()  => setOrbState('speaking'),
-    onSpeakEnd:   ()  => { setOrbState('idle'); setSubtitle(''); setOrbVolume(0) },
+    onSpeakStart:   () => setOrbState('speaking'),
+    onSpeakEnd:     () => { setOrbState('idle'); setSubtitle(''); setOrbVolume(0) },
     onVolumeChange: (v) => { if (isSpeaking) setOrbVolume(v) }
   })
 
@@ -70,18 +66,17 @@ export default function App(): React.JSX.Element {
   const handleModeChange = useCallback((mode: ActiveMode, newPersonality: Personality) => {
     setActiveMode(mode)
     setPersonality(newPersonality)
-    // Clear mode after 4 hours of inactivity (keeps the badge visible but not forever)
     setTimeout(() => setActiveMode(null), 4 * 60 * 60 * 1000)
   }, [])
 
   // ── Chat ───────────────────────────────────────────────────────────────────
-  const { messages, sendMessage, analyzeScreen, isLoading, isAnalyzing } = useChat({
-    onOrbStateChange:  setOrbState,
-    onSubtitleChange:  setSubtitle,
-    onSpeak:           (text) => speak(text, personality),
-    onModeChange:      handleModeChange,
-    onActionFeedback:  showFeedback,
-    onScreenFlash:     () => {
+  const { messages, sendMessage, analyzeScreen, isLoading, isAnalyzing, clearMessages } = useChat({
+    onOrbStateChange: setOrbState,
+    onSubtitleChange: setSubtitle,
+    onSpeak:          (text) => speak(text, personality),
+    onModeChange:     handleModeChange,
+    onActionFeedback: showFeedback,
+    onScreenFlash:    () => {
       setScreenshotFlash(true)
       setTimeout(() => setScreenshotFlash(false), 500)
     }
@@ -137,17 +132,39 @@ export default function App(): React.JSX.Element {
     else             { if (isSpeaking) stopSpeaking(); startListening() }
   }, [isListening, startListening, stopAndSend, isSpeaking, stopSpeaking])
 
-  // ── Space bar push-to-talk ─────────────────────────────────────────────────
+  // ── Wake word ──────────────────────────────────────────────────────────────
+  const handleWakeWord = useCallback(() => {
+    if (isListening || isLoading || isAnalyzing) return
+    if (isSpeaking) stopSpeaking()
+    startListening()
+  }, [isListening, isLoading, isAnalyzing, isSpeaking, stopSpeaking, startListening])
+
+  useWakeWord({
+    enabled:    wakeWordEnabled && isSupported,
+    paused:     isListening,
+    onWakeWord: handleWakeWord
+  })
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return
+
       if (e.code === 'Space' && !spaceDownRef.current) {
         e.preventDefault()
         spaceDownRef.current = true
         if (!isListening) { if (isSpeaking) stopSpeaking(); startListening() }
       }
-      if (e.code === 'Escape' && isListening) cancelListening()
+
+      if (e.code === 'Escape') {
+        if (isListening) {
+          cancelListening()
+        } else if (chatOpen) {
+          setChatOpen(false)
+          setActiveTab(null)
+        }
+      }
     }
     const onUp = (e: KeyboardEvent) => {
       if (e.code === 'Space' && spaceDownRef.current) {
@@ -162,7 +179,7 @@ export default function App(): React.JSX.Element {
       window.removeEventListener('keydown', onDown)
       window.removeEventListener('keyup', onUp)
     }
-  }, [isListening, startListening, stopAndSend, cancelListening, isSpeaking, stopSpeaking])
+  }, [isListening, startListening, stopAndSend, cancelListening, isSpeaking, stopSpeaking, chatOpen])
 
   // ── Toolbar ────────────────────────────────────────────────────────────────
   const handleToolbarAction = useCallback(
@@ -182,7 +199,7 @@ export default function App(): React.JSX.Element {
         setActiveTab((p) => (p === id ? null : id))
       }
     },
-    [chatOpen, toggleMic]
+    [chatOpen, toggleMic, analyzeScreen, personality]
   )
 
   const handleOrbClick = useCallback(() => {
@@ -195,7 +212,12 @@ export default function App(): React.JSX.Element {
     <div className="app">
       <HUDBackground />
 
-      <TopBar systemStatus={systemStatus} activeMode={activeMode} />
+      <TopBar
+        systemStatus={systemStatus}
+        activeMode={activeMode}
+        wakeWordActive={wakeWordEnabled}
+        onToggleWakeWord={() => setWakeWordEnabled((p) => !p)}
+      />
 
       <PersonalityBar current={personality} onChange={setPersonality} />
 
@@ -260,6 +282,7 @@ export default function App(): React.JSX.Element {
           isListening={isListening}
           isSupported={isSupported}
           isAnalyzing={isAnalyzing}
+          wakeWordEnabled={wakeWordEnabled}
         />
       </div>
 
@@ -270,6 +293,7 @@ export default function App(): React.JSX.Element {
             onSend={handleSend}
             isLoading={isLoading || isAnalyzing}
             onClose={() => { setChatOpen(false); setActiveTab(null) }}
+            onClear={clearMessages}
           />
         )}
       </AnimatePresence>
