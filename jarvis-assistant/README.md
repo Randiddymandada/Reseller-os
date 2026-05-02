@@ -1,6 +1,17 @@
-# JARVIS Desktop Assistant — Stage 1
+# JARVIS Desktop Assistant — Stage 2
 
 Iron Man HUD-style AI desktop assistant built with Electron + React + TypeScript.
+
+## Stage 2 — What's new
+
+- **Working speech-to-text** via Web Speech API (Chromium built-in, no extra API key)
+- **Push-to-talk**: hold `Space` anywhere in the app to record, release to send
+- **Mic button** in toolbar toggles listening — click once to start, click again to send
+- **Real-time volume analyzer** using Web AudioContext — orb rings react to your voice
+- **Orb listening state**: rings speed up, turn teal, scale dynamically with volume
+- **Live subtitle preview**: your speech appears as you talk (interim transcription)
+- **ESC to cancel** — escape key aborts a recording session without sending
+- **Electron mic permissions** auto-granted (no system prompt needed)
 
 ## Stage 1 — What's included
 
@@ -88,12 +99,26 @@ JARVIS understands natural language and executes safe browser actions:
 
 All actions open in your default browser. No file system access, no shell commands.
 
+## Voice Usage (Stage 2)
+
+| Action                          | How                              |
+|---------------------------------|----------------------------------|
+| Start listening (push-to-talk)  | Hold `Space` bar                 |
+| Send speech                     | Release `Space`                  |
+| Toggle mic on/off               | Click MIC button in toolbar      |
+| Cancel recording                | Press `Escape`                   |
+| Watch your speech live          | Subtitle bar shows interim text  |
+
+**Requirements for STT:**
+- Internet connection (Web Speech API sends audio to Google's speech servers)
+- Microphone permission (auto-granted in Electron)
+
 ## Chat Usage
 
 1. Click the JARVIS orb or the CHAT toolbar button to open the chat panel
 2. Type your message and press Enter (or click Send)
 3. JARVIS responds via Claude, with a typing effect subtitle
-4. If you ask JARVIS to open something, it will launch it in your browser
+4. Hold Space (or click MIC) to speak — JARVIS hears you and responds
 
 ## Troubleshooting
 
@@ -121,10 +146,11 @@ All actions open in your default browser. No file system access, no shell comman
 
 ## What's Coming
 
-| Stage | Feature                                      |
-|-------|----------------------------------------------|
-| 2     | Working speech-to-text (Whisper / Web Speech API) |
-| 3     | ElevenLabs realistic voice output            |
-| 4     | Full PC action router (volume, modes, apps)  |
-| 5     | Screenshot vision + screen explanation       |
-| 6     | UI polish, personality presets, wake word    |
+| Stage | Feature                                      | Status  |
+|-------|----------------------------------------------|---------|
+| 1     | HUD UI, orb animations, text chat            | ✅ Done |
+| 2     | Speech-to-text, push-to-talk, volume orb     | ✅ Done |
+| 3     | ElevenLabs realistic voice output            | Pending |
+| 4     | Full PC action router (volume, modes, apps)  | Pending |
+| 5     | Screenshot vision + screen explanation       | Pending |
+| 6     | UI polish, personality presets, wake word    | Pending |

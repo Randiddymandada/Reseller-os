@@ -4,15 +4,20 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface SubtitleBarProps {
   text: string
   isVisible: boolean
+  isListening: boolean
+  interim: string
 }
 
-export function SubtitleBar({ text, isVisible }: SubtitleBarProps): React.JSX.Element {
+export function SubtitleBar({ text, isVisible, isListening, interim }: SubtitleBarProps): React.JSX.Element {
   const [displayed, setDisplayed] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const indexRef = useRef(0)
 
+  // Typewriter for JARVIS responses
   useEffect(() => {
+    if (isListening) return // don't type while listening
+
     if (!text) {
       setDisplayed('')
       setIsTyping(false)
@@ -29,29 +34,65 @@ export function SubtitleBar({ text, isVisible }: SubtitleBarProps): React.JSX.El
       if (indexRef.current < text.length) {
         setDisplayed(text.slice(0, indexRef.current + 1))
         indexRef.current++
-        timeoutRef.current = setTimeout(typeNext, 18)
+        // Slight variation in typing speed for naturalness
+        const delay = text[indexRef.current - 1] === ' ' ? 12 : 16
+        timeoutRef.current = setTimeout(typeNext, delay)
       } else {
         setIsTyping(false)
       }
     }
 
-    timeoutRef.current = setTimeout(typeNext, 100)
+    timeoutRef.current = setTimeout(typeNext, 80)
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
+  }, [text, isListening])
 
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    }
-  }, [text])
+  const showInterim = isListening && interim
+  const showJarvisText = !isListening && isVisible && text
 
   return (
     <div className="subtitle-bar">
-      <AnimatePresence>
-        {isVisible && text && (
+      <AnimatePresence mode="wait">
+        {showInterim ? (
+          // Live speech-to-text preview
           <motion.div
-            className="subtitle-content"
-            initial={{ opacity: 0, y: 6 }}
+            key="interim"
+            className="subtitle-content subtitle-interim"
+            initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.25 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+          >
+            <span className="subtitle-prefix subtitle-prefix-you">YOU</span>
+            <span className="subtitle-text-interim">{interim}</span>
+            <span className="subtitle-cursor-interim">|</span>
+          </motion.div>
+        ) : isListening ? (
+          // Listening but no interim text yet
+          <motion.div
+            key="listening"
+            className="subtitle-content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <span className="subtitle-prefix subtitle-prefix-you">MIC</span>
+            <motion.span
+              className="subtitle-listening-text"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            >
+              Listening…
+            </motion.span>
+          </motion.div>
+        ) : showJarvisText ? (
+          // JARVIS response
+          <motion.div
+            key={`jarvis-${text.slice(0, 20)}`}
+            className="subtitle-content"
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.22 }}
           >
             <span className="subtitle-prefix">JARVIS</span>
             <span className="subtitle-text">
@@ -59,7 +100,7 @@ export function SubtitleBar({ text, isVisible }: SubtitleBarProps): React.JSX.El
               {isTyping && <span className="subtitle-cursor">|</span>}
             </span>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </div>
   )

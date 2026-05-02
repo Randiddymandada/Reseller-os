@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { startServer } from './server'
@@ -69,6 +69,20 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Auto-grant microphone permission for the renderer (needed for Web Speech API + getUserMedia)
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'microphone') {
+      callback(true)
+    } else {
+      callback(false)
+    }
+  })
+
+  // Also handle permission checks (Electron 12+)
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'media' || permission === 'microphone'
+  })
+
   startServer()
   createWindow()
 
