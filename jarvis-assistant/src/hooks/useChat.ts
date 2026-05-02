@@ -228,7 +228,7 @@ export function useChat({
           throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
         }
 
-        const data = await res.json() as { message: string; action: Action | null }
+        const data = await res.json() as { message: string; actions: Action[] }
         const reply = data.message
 
         addMessage('assistant', reply)
@@ -243,8 +243,11 @@ export function useChat({
           setTimeout(() => { onSubtitleChange(''); onOrbStateChange('idle') }, 6000)
         }
 
-        if (data.action) {
-          setTimeout(() => executeAction(data.action!, personality), 700)
+        // Execute all returned actions with a short stagger
+        if (data.actions?.length) {
+          data.actions.forEach((action, i) => {
+            setTimeout(() => executeAction(action, personality), 700 + i * 200)
+          })
         }
 
       } catch (err) {

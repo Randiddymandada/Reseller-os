@@ -154,20 +154,15 @@ router.post('/chat', async (req, res) => {
     }
 
     const fullText = block.text
-    const actionMatch = fullText.match(/<action>([\s\S]*?)<\/action>/)
-    let action: { type: string; url?: string; description?: string } | null = null
-    let text = fullText
-
-    if (actionMatch) {
-      try {
-        action = JSON.parse(actionMatch[1].trim())
-        text = fullText.replace(/<action>[\s\S]*?<\/action>/g, '').trim()
-      } catch {
-        // malformed action block — ignore
-      }
+    const actions: Record<string, unknown>[] = []
+    const actionRegex = /<action>([\s\S]*?)<\/action>/g
+    let m: RegExpExecArray | null
+    while ((m = actionRegex.exec(fullText)) !== null) {
+      try { actions.push(JSON.parse(m[1].trim())) } catch { /* malformed — skip */ }
     }
+    const text = fullText.replace(/<action>[\s\S]*?<\/action>/g, '').trim()
 
-    return res.json({ message: text, action })
+    return res.json({ message: text, actions })
   } catch (err) {
     console.error('[JARVIS] Chat error:', err)
     const message = err instanceof Error ? err.message : 'Internal server error'

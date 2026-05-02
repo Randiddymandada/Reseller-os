@@ -29,8 +29,14 @@ export default function App(): React.JSX.Element {
   const [actionFeedback, setActionFeedback] = useState('')
   const [screenshotFlash, setScreenshotFlash] = useState(false)
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
-  const spaceDownRef     = useRef(false)
-  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const spaceDownRef      = useRef(false)
+  const feedbackTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const modeTimeoutRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup mode timeout on unmount
+  useEffect(() => () => {
+    if (modeTimeoutRef.current) clearTimeout(modeTimeoutRef.current)
+  }, [])
 
   // ── Backend health ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -66,7 +72,11 @@ export default function App(): React.JSX.Element {
   const handleModeChange = useCallback((mode: ActiveMode, newPersonality: Personality) => {
     setActiveMode(mode)
     setPersonality(newPersonality)
-    setTimeout(() => setActiveMode(null), 4 * 60 * 60 * 1000)
+    if (modeTimeoutRef.current) clearTimeout(modeTimeoutRef.current)
+    modeTimeoutRef.current = setTimeout(() => {
+      setActiveMode(null)
+      modeTimeoutRef.current = null
+    }, 4 * 60 * 60 * 1000)
   }, [])
 
   // ── Chat ───────────────────────────────────────────────────────────────────

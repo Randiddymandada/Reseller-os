@@ -86,11 +86,6 @@ export function useWakeWord({ enabled, paused, onWakeWord }: UseWakeWordOptions)
       start()
     } else {
       stop()
-      // When un-paused while still enabled, restart
-      if (enabled && !paused) {
-        shouldRunRef.current = true
-        start()
-      }
     }
     return stop
   }, [enabled, paused, start, stop])
