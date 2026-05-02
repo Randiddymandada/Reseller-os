@@ -3,6 +3,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { startServer } from './server'
 import { setSystemVolume, readClipboard, getSystemInfo } from './actions'
+import { captureScreenshot } from './screenshot'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -143,6 +144,11 @@ ipcMain.handle('action:get-clipboard', () => {
 // ── System info ────────────────────────────────────────────────────────────────
 ipcMain.handle('action:get-sysinfo', () => {
   return getSystemInfo()
+})
+
+// ── Screenshot / vision ────────────────────────────────────────────────────────
+ipcMain.handle('action:take-screenshot', async () => {
+  return captureScreenshot()
 })
 
 // ── Platform ───────────────────────────────────────────────────────────────────

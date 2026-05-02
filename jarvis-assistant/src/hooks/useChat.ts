@@ -12,16 +12,18 @@ export interface Message {
   content: string
   timestamp: number
   isError?: boolean
+  imagePreview?: string  // data URL for screenshot thumbnail
 }
 
 // ── Action types understood by the router ─────────────────────────────────────
 
-interface OpenUrlAction  { type: 'open_url';     url: string;         description?: string }
-interface SetVolumeAction{ type: 'set_volume';   value: number;       description?: string }
-interface GetClipboard   { type: 'get_clipboard';                     description?: string }
-interface ModeAction     { type: 'mode';         mode: string;        description?: string }
+interface OpenUrlAction        { type: 'open_url';        url: string;    description?: string }
+interface SetVolumeAction      { type: 'set_volume';      value: number;  description?: string }
+interface GetClipboard         { type: 'get_clipboard';                   description?: string }
+interface ModeAction           { type: 'mode';            mode: string;   description?: string }
+interface TakeScreenshotAction { type: 'take_screenshot';                 description?: string }
 
-type Action = OpenUrlAction | SetVolumeAction | GetClipboard | ModeAction
+type Action = OpenUrlAction | SetVolumeAction | GetClipboard | ModeAction | TakeScreenshotAction
 
 // ── Mode URL definitions ──────────────────────────────────────────────────────
 
@@ -53,12 +55,15 @@ interface UseChatOptions {
   onSpeak?:           (text: string) => void
   onModeChange?:      (mode: ActiveMode, personality: Personality) => void
   onActionFeedback?:  (msg: string) => void
+  onScreenFlash?:     () => void
 }
 
 interface UseChatReturn {
   messages:      Message[]
   sendMessage:   (text: string, personality?: Personality) => Promise<void>
+  analyzeScreen: (personality?: Personality) => Promise<void>
   isLoading:     boolean
+  isAnalyzing:   boolean
   clearMessages: () => void
 }
 
@@ -78,27 +83,64 @@ export function useChat({
   onSubtitleChange,
   onSpeak,
   onModeChange,
-  onActionFeedback
+  onActionFeedback,
+  onScreenFlash
 }: UseChatOptions): UseChatReturn {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [messages, setMessages]     = useState<Message[]>([])
+  const [isLoading, setIsLoading]   = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const historyRef = useRef<{ role: 'user' | 'assistant'; content: string }[]>([])
-  // Keep a stable ref to sendMessage so clipboard handler can call it
   const sendMessageRef = useRef<(text: string, personality?: Personality) => Promise<void>>(async () => {})
 
   const addMessage = useCallback(
-    (role: 'user' | 'assistant', content: string, isError = false): Message => {
+    (role: 'user' | 'assistant', content: string, isError = false, imagePreview?: string): Message => {
       const msg: Message = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         role,
         content,
         timestamp: Date.now(),
-        isError
+        isError,
+        imagePreview
       }
       setMessages((prev) => [...prev, msg])
       return msg
     },
     []
+  )
+
+  // ── Vision helper — capture, analyze, speak ───────────────────────────────────
+  const captureAndAnalyze = useCallback(
+    async (personality: Personality): Promise<void> => {
+      onScreenFlash?.()
+
+      const shot = await window.jarvis?.takeScreenshot()
+      if (!shot) throw new Error('Screenshot capture returned nothing')
+
+      const res = await fetch(`${API_BASE}/vision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: shot.base64 })
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
+      }
+
+      const { description } = await res.json() as { description: string }
+      const dataUrl = `data:image/png;base64,${shot.base64}`
+
+      addMessage('assistant', description, false, dataUrl)
+
+      onSubtitleChange(description)
+      onOrbStateChange('speaking')
+      if (onSpeak) {
+        onSpeak(description)
+      } else {
+        setTimeout(() => { onSubtitleChange(''); onOrbStateChange('idle') }, 6000)
+      }
+    },
+    [addMessage, onSubtitleChange, onOrbStateChange, onSpeak, onScreenFlash]
   )
 
   // ── Execute a single action ──────────────────────────────────────────────────
@@ -126,9 +168,7 @@ export function useChat({
             onActionFeedback?.('Clipboard is empty.')
             break
           }
-          // Truncate very long clipboard content
           const truncated = text.length > 3000 ? text.slice(0, 3000) + ' …(truncated)' : text
-          // Brief pause so JARVIS finishes speaking before sending follow-up
           setTimeout(() => {
             sendMessageRef.current(
               `The user wants a summary of this clipboard text. Summarize it concisely in plain speech:\n\n${truncated}`,
@@ -143,7 +183,6 @@ export function useChat({
           const urls = MODE_URLS[modeName] ?? []
           const modePersonality = MODE_PERSONALITIES[modeName] ?? personality
 
-          // Open each URL with a short stagger so the OS doesn't block them as popups
           for (let i = 0; i < urls.length; i++) {
             setTimeout(() => openUrl(urls[i]), i * 600)
           }
@@ -151,9 +190,19 @@ export function useChat({
           onModeChange?.(modeName as ActiveMode, modePersonality)
           break
         }
+
+        case 'take_screenshot': {
+          try {
+            await captureAndAnalyze(personality)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Screen capture failed.'
+            onActionFeedback?.(`Vision error: ${msg}`)
+          }
+          break
+        }
       }
     },
-    [onActionFeedback, onModeChange]
+    [onActionFeedback, onModeChange, captureAndAnalyze]
   )
 
   // ── Send a message ────────────────────────────────────────────────────────────
@@ -194,7 +243,6 @@ export function useChat({
           setTimeout(() => { onSubtitleChange(''); onOrbStateChange('idle') }, 6000)
         }
 
-        // Execute the action after a short delay so JARVIS can start speaking first
         if (data.action) {
           setTimeout(() => executeAction(data.action!, personality), 700)
         }
@@ -215,13 +263,37 @@ export function useChat({
     [isLoading, addMessage, onOrbStateChange, onSubtitleChange, onSpeak, executeAction]
   )
 
-  // Keep the ref in sync so the clipboard handler always has the latest version
   sendMessageRef.current = sendMessage
+
+  // ── Analyze screen (toolbar button / direct trigger) ──────────────────────────
+  const analyzeScreen = useCallback(
+    async (personality: Personality = 'calm') => {
+      if (isAnalyzing || isLoading) return
+
+      setIsAnalyzing(true)
+      onOrbStateChange('thinking')
+      addMessage('user', 'Take a look at my screen.')
+
+      try {
+        await captureAndAnalyze(personality)
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Screen analysis failed.'
+        addMessage('assistant', `⚠ ${errMsg}`, true)
+        onOrbStateChange('error')
+        onSubtitleChange('Vision error.')
+        setTimeout(() => { onOrbStateChange('idle'); onSubtitleChange('') }, 4000)
+        console.error('[JARVIS] analyzeScreen error:', err)
+      } finally {
+        setIsAnalyzing(false)
+      }
+    },
+    [isAnalyzing, isLoading, addMessage, onOrbStateChange, onSubtitleChange, captureAndAnalyze]
+  )
 
   const clearMessages = useCallback(() => {
     setMessages([])
     historyRef.current = []
   }, [])
 
-  return { messages, sendMessage, isLoading, clearMessages }
+  return { messages, sendMessage, analyzeScreen, isLoading, isAnalyzing, clearMessages }
 }

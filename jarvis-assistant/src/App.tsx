@@ -32,6 +32,7 @@ export default function App(): React.JSX.Element {
   const [personality, setPersonality] = useState<Personality>('calm')
   const [activeMode, setActiveMode]   = useState<ActiveMode>(null)
   const [actionFeedback, setActionFeedback] = useState('')
+  const [screenshotFlash, setScreenshotFlash] = useState(false)
   const spaceDownRef = useRef(false)
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -74,12 +75,16 @@ export default function App(): React.JSX.Element {
   }, [])
 
   // ── Chat ───────────────────────────────────────────────────────────────────
-  const { messages, sendMessage, isLoading } = useChat({
+  const { messages, sendMessage, analyzeScreen, isLoading, isAnalyzing } = useChat({
     onOrbStateChange:  setOrbState,
     onSubtitleChange:  setSubtitle,
     onSpeak:           (text) => speak(text, personality),
     onModeChange:      handleModeChange,
-    onActionFeedback:  showFeedback
+    onActionFeedback:  showFeedback,
+    onScreenFlash:     () => {
+      setScreenshotFlash(true)
+      setTimeout(() => setScreenshotFlash(false), 500)
+    }
   })
 
   const handleSend = useCallback(
@@ -169,6 +174,10 @@ export default function App(): React.JSX.Element {
       } else if (id === 'mic') {
         setActiveTab((p) => (p === 'mic' ? null : 'mic'))
         toggleMic()
+      } else if (id === 'vision') {
+        setChatOpen(true)
+        setActiveTab('chat')
+        analyzeScreen(personality)
       } else {
         setActiveTab((p) => (p === id ? null : id))
       }
@@ -250,6 +259,7 @@ export default function App(): React.JSX.Element {
           orbState={orbState}
           isListening={isListening}
           isSupported={isSupported}
+          isAnalyzing={isAnalyzing}
         />
       </div>
 
@@ -258,11 +268,14 @@ export default function App(): React.JSX.Element {
           <ChatPanel
             messages={messages}
             onSend={handleSend}
-            isLoading={isLoading}
+            isLoading={isLoading || isAnalyzing}
             onClose={() => { setChatOpen(false); setActiveTab(null) }}
           />
         )}
       </AnimatePresence>
+
+      {/* Screenshot capture flash */}
+      {screenshotFlash && <div className="screenshot-flash" />}
     </div>
   )
 }

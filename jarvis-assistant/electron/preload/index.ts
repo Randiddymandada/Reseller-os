@@ -20,6 +20,10 @@ const jarvisAPI = {
   getSysInfo: (): Promise<{ time: string; date: string; platform: string; uptime: number }> =>
     ipcRenderer.invoke('action:get-sysinfo'),
 
+  // Stage 5 — screenshot / vision
+  takeScreenshot: (): Promise<{ base64: string; mimeType: string; width: number; height: number }> =>
+    ipcRenderer.invoke('action:take-screenshot'),
+
   // Platform info
   getPlatform: (): Promise<NodeJS.Platform> => ipcRenderer.invoke('get-platform')
 }

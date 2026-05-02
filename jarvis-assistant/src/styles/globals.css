@@ -1265,3 +1265,57 @@ html, body {
   box-shadow: 0 0 6px var(--secondary);
   flex-shrink: 0;
 }
+
+
+/* ────────────────────────────────────────
+   Stage 5 — Screenshot Vision
+   ──────────────────────────────────────── */
+
+/* Full-screen flash on screenshot capture */
+.screenshot-flash {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 212, 255, 0.18);
+  pointer-events: none;
+  z-index: 500;
+  animation: cameraFlash 0.5s ease-out forwards;
+}
+
+@keyframes cameraFlash {
+  0%   { opacity: 1; }
+  60%  { opacity: 0.4; }
+  100% { opacity: 0; }
+}
+
+/* Screenshot thumbnail in chat messages */
+.chat-img-preview {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+  opacity: 0.88;
+  transition: opacity 0.2s;
+}
+
+.chat-img-preview:hover {
+  opacity: 1;
+}
+
+/* Vision scanning pulse ring on the VISION toolbar button */
+.vision-scan-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid rgba(0, 212, 255, 0.6);
+  pointer-events: none;
+}
+
+/* Vision button active/scanning state */
+.toolbar-btn.vision-scanning {
+  color: var(--primary);
+  border-color: rgba(0, 212, 255, 0.4);
+  background: rgba(0, 212, 255, 0.08);
+}

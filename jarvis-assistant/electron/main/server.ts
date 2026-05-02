@@ -77,6 +77,10 @@ When the user says "summarize this", "summarize what I copied", "what did I copy
 <action>{"type":"mode","mode":"gaming","description":"Activating gaming mode"}</action>
 <action>{"type":"mode","mode":"chill","description":"Activating chill mode"}</action>
 
+### Screen vision (take a screenshot and analyze it)
+When the user asks "what's on my screen", "take a look at my screen", "what am I looking at", "analyze my screen", or similar:
+<action>{"type":"take_screenshot","description":"Capturing and analyzing the screen"}</action>
+
 ## Mode Definitions
 - study: "Study mode activated." — opens lofi music on YouTube + Pomodoro timer
 - gaming: "Gaming mode engaged." — opens Discord + Steam
@@ -230,6 +234,48 @@ router.post('/tts', async (req, res) => {
     console.error('[JARVIS TTS] Fetch error:', err)
     const message = err instanceof Error ? err.message : 'TTS request failed'
     res.status(500).json({ error: message, fallback: true })
+  }
+})
+
+router.post('/vision', async (req, res) => {
+  try {
+    const {
+      imageBase64,
+      question = 'What do you see on this screen? Describe what is visible concisely.'
+    }: { imageBase64: string; question?: string } = req.body
+
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 is required' })
+    }
+
+    const client = getClient()
+
+    const response = await client.messages.create({
+      model: 'claude-opus-4-7',
+      max_tokens: 512,
+      system: JARVIS_SYSTEM_PROMPT + '\n\nYou are analyzing a screenshot. Be specific and concise — mention visible apps, content, or key information. Write for speech: no markdown, no bullet points.',
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/png', data: imageBase64 }
+          },
+          { type: 'text', text: question }
+        ]
+      }]
+    })
+
+    const block = response.content[0]
+    if (block.type !== 'text') {
+      return res.status(500).json({ error: 'Unexpected response from AI' })
+    }
+
+    return res.json({ description: cleanTextForSpeech(block.text) })
+  } catch (err) {
+    console.error('[JARVIS] Vision error:', err)
+    const message = err instanceof Error ? err.message : 'Vision analysis failed'
+    return res.status(500).json({ error: message })
   }
 })
 

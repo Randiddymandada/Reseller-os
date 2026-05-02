@@ -9,6 +9,7 @@ interface ToolbarProps {
   orbState: OrbState
   isListening: boolean
   isSupported: boolean
+  isAnalyzing?: boolean
 }
 
 export function Toolbar({
@@ -16,7 +17,8 @@ export function Toolbar({
   onAction,
   orbState,
   isListening,
-  isSupported
+  isSupported,
+  isAnalyzing = false
 }: ToolbarProps): React.JSX.Element {
   const items = [
     {
@@ -32,10 +34,16 @@ export function Toolbar({
       always: true,
       disabled: !isSupported
     },
-    { id: 'vision',   label: 'VISION',   icon: <Eye size={18} />,          always: false },
-    { id: 'apps',     label: 'APPS',     icon: <Grid size={18} />,          always: false },
-    { id: 'music',    label: 'MUSIC',    icon: <Music size={18} />,         always: false },
-    { id: 'settings', label: 'SETTINGS', icon: <Settings size={18} />,     always: false }
+    {
+      id: 'vision',
+      label: isAnalyzing ? 'SCANNING' : 'VISION',
+      icon: <Eye size={18} />,
+      always: true,
+      analyzing: isAnalyzing
+    },
+    { id: 'apps',     label: 'APPS',     icon: <Grid size={18} />,      always: false },
+    { id: 'music',    label: 'MUSIC',    icon: <Music size={18} />,     always: false },
+    { id: 'settings', label: 'SETTINGS', icon: <Settings size={18} />, always: false }
   ]
 
   return (
@@ -44,16 +52,17 @@ export function Toolbar({
         {items.map((item, idx) => {
           const isActive = activeTab === item.id || (item.id === 'mic' && isListening)
           const showDivider = idx === items.length - 1
+          const disabled = item.disabled || (item.id === 'vision' && isAnalyzing)
 
           return (
             <React.Fragment key={item.id}>
               {showDivider && <div className="toolbar-divider" />}
 
               <motion.button
-                className={`toolbar-btn${isActive ? ' active' : ''}${item.id === 'mic' && isListening ? ' mic-live' : ''}`}
-                onClick={() => !item.disabled && onAction(item.id)}
-                whileTap={item.disabled ? {} : { scale: 0.9 }}
-                disabled={item.disabled}
+                className={`toolbar-btn${isActive ? ' active' : ''}${item.id === 'mic' && isListening ? ' mic-live' : ''}${'analyzing' in item && item.analyzing ? ' vision-scanning' : ''}`}
+                onClick={() => !disabled && onAction(item.id)}
+                whileTap={disabled ? {} : { scale: 0.9 }}
+                disabled={disabled}
                 aria-label={item.label}
                 aria-pressed={isActive}
                 title={
@@ -61,15 +70,24 @@ export function Toolbar({
                     ? 'Speech recognition not supported in this environment'
                     : item.always
                       ? item.label
-                      : `${item.label} — coming in Stage 3+`
+                      : `${item.label} — coming soon`
                 }
               >
-                {/* Mic button gets a live pulse ring */}
+                {/* Mic live pulse ring */}
                 {item.id === 'mic' && isListening && (
                   <motion.div
                     className="mic-live-ring"
                     animate={{ scale: [1, 1.8, 1], opacity: [0.8, 0, 0.8] }}
                     transition={{ duration: 1.2, repeat: Infinity, ease: 'easeOut' }}
+                  />
+                )}
+
+                {/* Vision scanning pulse ring */}
+                {'analyzing' in item && item.analyzing && (
+                  <motion.div
+                    className="vision-scan-ring"
+                    animate={{ scale: [1, 1.8, 1], opacity: [0.8, 0, 0.8] }}
+                    transition={{ duration: 0.9, repeat: Infinity, ease: 'easeOut' }}
                   />
                 )}
 
@@ -93,7 +111,9 @@ export function Toolbar({
         <span className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 1 }}>
           {isListening
             ? 'HOLD SPACE TO TALK  •  RELEASE TO SEND  •  ESC TO CANCEL'
-            : 'HOLD SPACE OR CLICK MIC TO TALK  •  VISION / VOICE OUTPUT IN STAGE 3+'}
+            : isAnalyzing
+              ? 'CAPTURING SCREEN  •  ANALYZING WITH VISION AI…'
+              : 'HOLD SPACE OR CLICK MIC TO TALK  •  CLICK VISION TO ANALYZE SCREEN'}
         </span>
       </div>
     </nav>

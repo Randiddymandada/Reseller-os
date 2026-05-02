@@ -83,6 +83,13 @@ export function ChatPanel({ messages, onSend, isLoading, onClose }: ChatPanelPro
               <div className="chat-message-sender">
                 {msg.role === 'user' ? 'YOU' : 'JARVIS'}
               </div>
+              {msg.imagePreview && (
+                <img
+                  src={msg.imagePreview}
+                  alt="Screen capture"
+                  className="chat-img-preview"
+                />
+              )}
               <div className="chat-message-text">{msg.content}</div>
               <div className="chat-message-time">
                 {new Date(msg.timestamp).toLocaleTimeString('en-US', {
